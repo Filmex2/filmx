@@ -838,7 +838,7 @@
             const videoContainer = document.getElementById('video-container');
             const videoPlayer = document.getElementById('player-video');
             
-            videoPlayer.src = `${SERVER_URL}/Videos/${movie.Id}/stream.mp4?api_key=${API_KEY}&audioCodec=aac&audioChannels=2`;
+            videoPlayer.src = `${SERVER_URL}/Videos/${movie.Id}/master.m3u8?api_key=${API_KEY}`;
             videoContainer.style.display = 'flex';
 
             if (videoPlayer.requestFullscreen) {
