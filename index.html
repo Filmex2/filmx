@@ -5,6 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FilmX - Streaming Inteligente</title>
     <link rel="manifest" href="manifest.json">
+    
+    <!-- SISTEMA DE REDIRECCIÓN ESTRICTO PARA GITHUB PAGES -->
+    <script>
+        if (window.location.hostname.includes('github.io')) {
+            // 1. Bloquea la pantalla para que nadie intente poner usuario/clave en GitHub
+            document.write('<div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#141414;color:#fff;display:flex;justify-content:center;align-items:center;z-index:99999999;font-family:Arial, sans-serif;flex-direction:column;"><h2 style="font-size:2.5rem; margin-bottom:15px; letter-spacing: 2px;">FILMX</h2><p style="color:#00f2ff; font-size:1.2rem;">Conectando con el servidor principal...</p></div>');
+            
+            // 2. Busca el túnel de tu máquina leyendo el Gist (esquivando el caché)
+            function buscarTunel() {
+                fetch('https://gist.githubusercontent.com/filmex2/514b84a8623e327038f87e50d94cc76e/raw/url.txt?' + new Date().getTime())
+                    .then(r => r.text())
+                    .then(url => {
+                        const link = url.trim();
+                        if (link.startsWith('https://') && link.includes('trycloudflare.com')) {
+                            window.location.replace(link);
+                        } else {
+                            setTimeout(buscarTunel, 3000); // Si no hay link válido, reintenta
+                        }
+                    })
+                    .catch(() => {
+                        setTimeout(buscarTunel, 3000);
+                    });
+            }
+            buscarTunel();
+        }
+    </script>
+
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
         body { background-color: #141414; color: #fff; overflow-x: hidden; }
@@ -377,18 +404,6 @@
     </div>
 
     <script>
-        // Redirección inteligente: Solo actúa si está publicado en Netlify (no afecta tu localhost)
-        if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-            fetch('https://gist.githubusercontent.com/filmex2/514b84a8623e327038f87e50d94cc76e/raw/url.txt')
-                .then(response => response.text())
-                .then(urlDinamica => {
-                    const linkLimpio = urlDinamica.trim();
-                    if (linkLimpio.startsWith('http')) {
-                        window.location.href = linkLimpio;
-                    }
-                }).catch(() => {});
-        }
-
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
