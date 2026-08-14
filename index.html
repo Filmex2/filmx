@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilmX - Streaming Inteligente</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        body { background-color: #141414; color: #fff; overflow-x: hidden; }
+
+        /* FOCO EXAGERADO PARA SMART TV (Control remoto) */
+        *:focus {
+            outline: 4px solid #e50914 !important;
+            outline-offset: 3px !important;
+            z-index: 100 !important;
+            box-shadow: 0 0 20px rgba(229, 9, 20, 0.8) !important;
+        }
+
+        /* PANTALLA DE INICIO */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000;
+            display: flex; justify-content: center; align-items: center; z-index: 999999;
+            flex-direction: column;
+        }
+        #start-screen button {
+            padding: 15px 40px; font-size: 1.2rem; font-weight: bold; cursor: pointer;
+            background-color: #e50914; color: #fff; border: none; border-radius: 4px;
+            transition: transform 0.2s; outline: none;
+        }
+        #start-screen button:hover, #start-screen button:focus { transform: scale(1.05); outline: 3px solid #fff; }
+        
+        /* INTRO CINEMÁTICA */
+        #intro-splash { 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; 
+            display: none; justify-content: center; align-items: center; z-index: 99999; 
+        }
+        #intro-splash.active { animation: fadeOutSplash 0.6s ease 3.4s forwards; }
+
+        .intro-glow-bg {
+            position: absolute; width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(0,242,255,0.4) 0%, rgba(0,102,255,0.1) 60%, transparent 80%);
+            border-radius: 50%; filter: blur(50px); z-index: 1; opacity: 0;
+        }
+        #intro-splash.active .intro-glow-bg { animation: glowForward 4s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        
+        #intro-splash h1 { 
+            position: relative; z-index: 2; font-size: 7.5rem; font-weight: 900; letter-spacing: 6px;
+            background: linear-gradient(135deg, #88e7ff 0%, #ffffff 50%, #4499cc 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 25px rgba(0,242,255,0.7), 0 0 50px rgba(0,150,255,0.4);
+            transform-style: preserve-3d; opacity: 0;
+        }
+        #intro-splash.active h1 { animation: textZoomForward 4s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+
+        @keyframes glowForward {
+            0% { transform: scale(0.2); opacity: 0; }
+            30% { transform: scale(1.0); opacity: 1; }
+            100% { transform: scale(2.0); opacity: 0; }
+        }
+
+        @keyframes textZoomForward {
+            0% { transform: scale(0.3) translateZ(-400px); opacity: 0; filter: blur(12px); letter-spacing: -15px; }
+            25% { opacity: 1; filter: blur(0px); }
+            85% { transform: scale(1.4) translateZ(0); opacity: 1; filter: blur(0px); letter-spacing: 8px; }
+            100% { transform: scale(1.8) translateZ(0); opacity: 0; filter: blur(10px); }
+        }
+
+        @keyframes fadeOutSplash { to { opacity: 0; visibility: hidden; } }
+
+        /* PANTALLA 1: LOGIN */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #141414;
+            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999;
+        }
+        .login-box {
+            background: #000; padding: 40px; border-radius: 8px; border: 1px solid #333;
+            display: flex; flex-direction: column; gap: 20px; width: 350px; text-align: center;
+        }
+        .login-box h2 { font-size: 2rem; margin-bottom: 10px; color: #fff; }
+        .login-box input {
+            padding: 12px 15px; font-size: 1rem; border-radius: 4px; border: 1px solid #444;
+            background: #222; color: #fff; outline: none; width: 100%;
+        }
+        .login-box input:focus { border-color: #00f2ff; box-shadow: 0 0 8px rgba(0,242,255,0.5); }
+        .login-box button {
+            padding: 12px; font-size: 1.1rem; font-weight: bold; background: #e50914; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; outline: none; width: 100%;
+        }
+        .login-box button:focus, .login-box button:hover { background: #ff1e27; outline: 2px solid #fff; }
+        .error-msg { color: #ff4d4d; font-size: 0.9rem; display: none; }
+
+        /* MODAL DE REGISTRO */
+        #registro-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95);
+            display: none; justify-content: center; align-items: center; z-index: 10000;
+        }
+
+        /* PANTALLA 2: SELECCIÓN DE PERFILES */
+        #profile-screen { 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #141414; 
+            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9998; 
+        }
+        #profile-screen h1 { font-size: 2.5rem; margin-bottom: 30px; color: #fff; font-weight: normal; }
+        .profiles-grid { display: flex; gap: 25px; flex-wrap: wrap; justify-content: center; max-width: 1000px; }
+        .profile-item { text-align: center; cursor: pointer; transition: transform 0.3s; outline: none; }
+        .profile-item:hover, .profile-item:focus { transform: scale(1.1); }
+        .profile-img { width: 110px; height: 110px; border-radius: 8px; background-size: cover; background-position: center; border: 3px solid transparent; }
+        .profile-item:hover .profile-img, .profile-item:focus .profile-img { border-color: #00f2ff; box-shadow: 0 0 15px rgba(0,242,255,0.6); }
+        .profile-item p { margin-top: 10px; font-size: 1.1rem; color: #b3b3b3; }
+        .profile-item:hover p, .profile-item:focus p { color: #fff; }
+
+        .add-profile-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 110px; height: 110px; border-radius: 8px; border: 2px dashed #666; background: rgba(255,255,255,0.05);
+            font-size: 3rem; color: #888; cursor: pointer; transition: all 0.3s; outline: none;
+        }
+        .profile-item:hover .add-profile-btn, .profile-item:focus .add-profile-btn {
+            border-color: #fff; color: #fff; background: rgba(255,255,255,0.15);
+        }
+
+        /* PANTALLA 3: CREAR NUEVO PERFIL */
+        #create-profile-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95);
+            display: none; justify-content: center; align-items: center; z-index: 10000;
+        }
+        .create-box {
+            background: #181818; padding: 35px; border-radius: 8px; border: 1px solid #333;
+            width: 600px; display: flex; flex-direction: column; gap: 20px; text-align: center;
+        }
+        .create-box h2 { font-size: 2rem; color: #fff; }
+        .avatar-gallery { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 15px 0; }
+        .avatar-option {
+            width: 80px; height: 80px; border-radius: 6px; background-size: cover; background-position: center;
+            border: 3px solid transparent; cursor: pointer; outline: none; transition: transform 0.2s;
+        }
+        .avatar-option:hover, .avatar-option:focus, .avatar-option.selected {
+            border-color: #00f2ff; transform: scale(1.1); box-shadow: 0 0 10px rgba(0,242,255,0.8);
+        }
+        .create-box input {
+            padding: 12px 15px; font-size: 1.1rem; border-radius: 4px; border: 1px solid #444;
+            background: #222; color: #fff; outline: none; width: 100%;
+        }
+        .create-box input:focus { border-color: #00f2ff; }
+        .create-actions { display: flex; gap: 15px; justify-content: center; }
+        .create-actions button {
+            padding: 12px 25px; font-size: 1rem; font-weight: bold; border-radius: 4px; cursor: pointer; border: none; outline: none;
+        }
+        .btn-save-profile { background: #00f2ff; color: #000; }
+        .btn-cancel-profile { background: #444; color: #fff; }
+
+        /* APP PRINCIPAL */
+        #app-content { display: none; }
+        .main-layout { display: flex; }
+
+        nav { width: 70px; height: 100vh; background-color: #000; display: flex; flex-direction: column; align-items: center; padding-top: 30px; position: fixed; z-index: 100; transition: width 0.3s; }
+        nav:hover, nav:focus-within { width: 200px; }
+        .nav-item { display: flex; align-items: center; width: 100%; padding: 15px 20px; color: #b3b3b3; cursor: pointer; text-decoration: none; transition: color 0.2s, background 0.2s; white-space: nowrap; overflow: hidden; outline: none; }
+        .nav-item svg { width: 24px; height: 24px; fill: currentColor; flex-shrink: 0; margin-right: 15px; }
+        .nav-item span { opacity: 0; transition: opacity 0.3s; font-size: 0.95rem; font-weight: 500; }
+        nav:hover .nav-item span, nav:focus-within .nav-item span { opacity: 1; }
+        .nav-item:hover, .nav-item:focus, .nav-item.active { color: #fff; background: rgba(255,255,255,0.08); border-left: 4px solid #e50914; }
+
+        main { margin-left: 70px; width: calc(100% - 70px); padding-bottom: 60px; transition: margin-left 0.3s, width 0.3s; }
+
+        .top-action-bar { position: absolute; top: 25px; right: 50px; z-index: 50; display: flex; gap: 15px; align-items: center; }
+        .view-toggle-btn { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 8px 15px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: bold; transition: background 0.2s; outline: none; }
+        .view-toggle-btn:hover, .view-toggle-btn:focus { background: rgba(255,255,255,0.2); outline: 2px solid #fff; }
+        .view-toggle-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+        .hero { width: 100%; height: 60vh; background-size: cover; background-position: center 25%; background-repeat: no-repeat; display: flex; flex-direction: column; justify-content: flex-end; padding: 40px 60px; position: relative; transition: background-image 1s ease-in-out; }
+        .hero::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, #141414 10%, rgba(20,20,20,0.3) 50%, rgba(20,20,20,0.85)); z-index: 1; }
+        .hero-content { position: relative; z-index: 2; max-width: 650px; }
+        .hero h1 { font-size: 3.5rem; margin-bottom: 10px; text-shadow: 2px 2px 6px rgba(0,0,0,0.9); }
+        .hero p { font-size: 1.1rem; margin-bottom: 20px; color: #ddd; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .hero-buttons button { padding: 12px 30px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-right: 15px; transition: opacity 0.2s; outline: none; }
+        .btn-play { background-color: #fff; color: #000; }
+        .btn-play:hover, .btn-play:focus { opacity: 0.85; outline: 3px solid #00f2ff; }
+        .btn-info { background-color: rgba(109, 109, 110, 0.7); color: #fff; }
+        .btn-info:hover, .btn-info:focus { background-color: rgba(109, 109, 110, 0.5); outline: 3px solid #fff; }
+
+        #rows-view { display: block; }
+        .row { margin: 30px 0 0 50px; position: relative; }
+        .row h2 { font-size: 1.4rem; margin-bottom: 12px; color: #e5e5e5; font-weight: 500; }
+        .row-wrapper { position: relative; display: flex; align-items: center; }
+        .row-cards { display: flex; gap: 12px; overflow-x: auto; padding: 10px 0; scroll-behavior: smooth; width: 100%; }
+        .row-cards::-webkit-scrollbar { display: none; }
+        
+        .card { min-width: 150px; height: 225px; background-color: #1e1e1e; border-radius: 4px; flex-shrink: 0; background-size: cover; background-position: center; transition: transform 0.3s, box-shadow 0.3s; cursor: pointer; outline: none; display: flex; align-items: flex-end; padding: 12px; position: relative; border: 1px solid #333; }
+        .card:hover, .card:focus { transform: scale(1.08); z-index: 10; box-shadow: 0 10px 20px rgba(0,0,0,0.8); border: 2px solid #fff; }
+        .card-fallback-title { font-size: 0.9rem; font-weight: bold; color: #fff; text-shadow: 1px 1px 4px #000; background: rgba(0,0,0,0.85); width: 100%; padding: 8px; border-radius: 3px; text-align: center; }
+
+        .slider-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.7); color: #fff; border: none; font-size: 2rem; width: 40px; height: 100px; z-index: 20; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: background 0.2s, opacity 0.2s; outline: none; }
+        .slider-btn:hover, .slider-btn:focus { background: rgba(0,0,0,0.9); opacity: 1; border: 2px solid #fff; }
+        .slider-left { left: -20px; }
+        .slider-right { right: 10px; }
+
+        #grid-view { display: none; padding: 40px 50px; }
+        #grid-view h2 { font-size: 2rem; margin-bottom: 25px; color: #fff; }
+        .movies-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+
+        #detail-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 10000; justify-content: center; align-items: center; }
+        .modal-content { background: #181818; width: 750px; border-radius: 8px; overflow: hidden; border: 1px solid #333; position: relative; box-shadow: 0 15px 35px rgba(0,0,0,0.8); }
+        .modal-header { height: 280px; background-size: cover; background-position: center; background-repeat: no-repeat; display: flex; flex-direction: column; justify-content: flex-end; padding: 25px; background-color: #111; }
+        .modal-body { padding: 25px 30px; }
+        .modal-body h2 { font-size: 2rem; margin-bottom: 10px; color: #fff; text-shadow: 1px 1px 4px #000; }
+        .modal-body p { color: #ccc; margin-bottom: 20px; font-size: 1rem; line-height: 1.5; max-height: 120px; overflow-y: auto; }
+        .modal-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .modal-actions button { padding: 10px 20px; font-size: 1rem; font-weight: bold; border-radius: 4px; cursor: pointer; border: none; outline: none; }
+        .btn-modal-play { background: #fff; color: #000; }
+        .btn-modal-play:hover { background: #e50914; color: #fff; }
+        .btn-modal-trailer { background: #333; color: #fff; border: 1px solid #555; }
+        .btn-close { position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.7); color: #fff; border: none; font-size: 1.2rem; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; outline: none; }
+        .btn-close:hover { background: #e50914; }
+
+        /* REPRODUCTOR DE VIDEO ADAPTADO (MOUSE OPERATIVO EN PC Y FULLSCREEN VISUAL) */
+        #video-container { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background: #000; 
+            z-index: 999999; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        #video-container video { 
+            width: 100vw; 
+            height: 100vh; 
+            object-fit: contain; 
+            outline: none; 
+        }
+        .btn-close-video { position: absolute; top: 25px; right: 35px; background: rgba(0,0,0,0.7); color: #fff; border: 2px solid #fff; font-size: 1.8rem; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; z-index: 1000000; display: flex; align-items: center; justify-content: center; outline: none; }
+        .btn-close-video:hover { background: #e50914; border-color: #e50914; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <button tabindex="0" onclick="arrancarAnimacion()">Ingresar a FilmX</button>
+    </div>
+
+    <div id="intro-splash">
+        <div class="intro-glow-bg"></div>
+        <h1>FILMX</h1>
+    </div>
+
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>Acceso a FilmX</h2>
+            <input type="text" id="login-user" placeholder="Usuario" tabindex="0" onkeypress="if(event.key==='Enter') document.getElementById('login-pass').focus()">
+            <input type="password" id="login-pass" placeholder="Código (6 caracteres)" tabindex="0" onkeypress="if(event.key==='Enter') validarLogin()">
+            <button tabindex="0" onclick="validarLogin()">Iniciar Sesión</button>
+            <p style="margin-top:12px; color:#00f2ff; cursor:pointer; font-size: 0.9rem;" onclick="abrirRegistro()">¿No tenés cuenta? Solicitá acceso</p>
+            <p id="error-msg" class="error-msg">Usuario incorrecto, clave errónea o pendiente de habilitación.</p>
+        </div>
+    </div>
+
+    <div id="registro-modal">
+        <div class="login-box">
+            <h2>Solicitar Acceso</h2>
+            <input type="text" id="reg-user" placeholder="Elegí tu nombre de usuario">
+            <input type="text" id="reg-pass" placeholder="Código (exacto 6 caracteres)">
+            <button onclick="registrarUsuario()">Enviar Solicitud</button>
+            <button style="background:#444; margin-top:10px;" onclick="cerrarRegistro()">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="profile-screen">
+        <h1>¿Quién está viendo ahora?</h1>
+        <div class="profiles-grid" id="profiles-container"></div>
+    </div>
+
+    <div id="create-profile-modal">
+        <div class="create-box">
+            <h2>Crear Perfil</h2>
+            <p style="color:#aaa;">Seleccioná una figura/avatar:</p>
+            <div class="avatar-gallery">
+                <div tabindex="0" class="avatar-option selected" style="background-image: url('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde')" onclick="seleccionarAvatar(this, 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde')"></div>
+                <div tabindex="0" class="avatar-option" style="background-image: url('https://images.unsplash.com/photo-1494790108377-be9c29b29330')" onclick="seleccionarAvatar(this, 'https://images.unsplash.com/photo-1494790108377-be9c29b29330')"></div>
+                <div tabindex="0" class="avatar-option" style="background-image: url('https://images.unsplash.com/photo-1570295999919-56ceb5ecca61')" onclick="seleccionarAvatar(this, 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61')"></div>
+                <div tabindex="0" class="avatar-option" style="background-image: url('https://images.unsplash.com/photo-1527980965255-d3b416303d12')" onclick="seleccionarAvatar(this, 'https://images.unsplash.com/photo-1527980965255-d3b416303d12')"></div>
+                <div tabindex="0" class="avatar-option" style="background-image: url('https://images.unsplash.com/photo-1534528741775-53994a69daeb')" onclick="seleccionarAvatar(this, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb')"></div>
+                <div tabindex="0" class="avatar-option" style="background-image: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d')" onclick="seleccionarAvatar(this, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d')"></div>
+            </div>
+            <input type="text" id="new-profile-name" placeholder="Escribí el nombre del perfil..." tabindex="0" onkeypress="if(event.key==='Enter') guardarNuevoPerfil()">
+            <div class="create-actions">
+                <button tabindex="0" class="btn-save-profile" onclick="guardarNuevoPerfil()">Guardar Perfil</button>
+                <button tabindex="0" class="btn-cancel-profile" onclick="cerrarCrearPerfil()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="video-container">
+        <button tabindex="0" class="btn-close-video" onclick="cerrarVideo()">✕</button>
+        <video id="player-video" controls autoplay></video>
+    </div>
+
+    <div id="app-content" class="main-layout">
+        <nav>
+            <a tabindex="0" class="nav-item active" onclick="irAInicio()" onkeypress="if(event.key==='Enter') irAInicio()">
+                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                <span>Inicio</span>
+            </a>
+            <a tabindex="0" class="nav-item" onclick="mostrarVista('cuadricula')" onkeypress="if(event.key==='Enter') mostrarVista('cuadricula')">
+                <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+                <span>Todas las películas</span>
+            </a>
+            <a tabindex="0" class="nav-item" onclick="cargarSeries()" onkeypress="if(event.key==='Enter') cargarSeries()">
+                <svg viewBox="0 0 24 24"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>
+                <span>Series</span>
+            </a>
+            <a tabindex="0" class="nav-item" onclick="instalarApp()" onkeypress="if(event.key==='Enter') instalarApp()">
+                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                <span>Instalar App</span>
+            </a>
+        </nav>
+
+        <main style="position: relative;">
+            <div class="top-action-bar">
+                <button tabindex="0" class="view-toggle-btn" onclick="toggleVistaPrincipal()" onkeypress="if(event.key==='Enter') toggleVistaPrincipal()">
+                    <svg viewBox="0 0 24 24"><path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"/></svg>
+                    <span id="btn-toggle-text">Ver Cuadrícula Total</span>
+                </button>
+            </div>
+
+            <div id="rows-view">
+                <div class="hero" id="hero-banner">
+                    <div class="hero-content">
+                        <h1 id="hero-title">FILMX</h1>
+                        <p id="hero-desc">Cargando estrenos...</p>
+                        <div class="hero-buttons">
+                            <button tabindex="0" class="btn-play" id="hero-play-btn">▶ Reproducir</button>
+                            <button tabindex="0" class="btn-info" id="hero-info-btn">ℹ Más información</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Las 12 Filas Estilo Netflix completas -->
+                <div class="row"><h2>Tendencias de la semana</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-1', -400)">‹</button><div id="row-bloque-1" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-1', 400)">›</button></div></div>
+                <div class="row"><h2>Lo más visto por la comunidad</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-2', -400)">‹</button><div id="row-bloque-2" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-2', 400)">›</button></div></div>
+                <div class="row"><h2>Estrenos recientes</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-3', -400)">‹</button><div id="row-bloque-3" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-3', 400)">›</button></div></div>
+                <div class="row"><h2>Acción y adrenalina</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-4', -400)">‹</button><div id="row-bloque-4" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-4', 400)">›</button></div></div>
+                <div class="row"><h2>Ciencia ficción y misterio</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-5', -400)">‹</button><div id="row-bloque-5" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-5', 400)">›</button></div></div>
+                <div class="row"><h2>Comedia y diversión</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-6', -400)">‹</button><div id="row-bloque-6" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-6', 400)">›</button></div></div>
+                <div class="row"><h2>Drama y emoción</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-7', -400)">‹</button><div id="row-bloque-7" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-7', 400)">›</button></div></div>
+                <div class="row"><h2>Animación y familia</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-8', -400)">‹</button><div id="row-bloque-8" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-8', 400)">›</button></div></div>
+                <div class="row"><h2>Clásicos imperdibles</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-9', -400)">‹</button><div id="row-bloque-9" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-9', 400)">›</button></div></div>
+                <div class="row"><h2>Películas aclamadas</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-10', -400)">‹</button><div id="row-bloque-10" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-10', 400)">›</button></div></div>
+                <div class="row"><h2>Selección especial FilmX</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-11', -400)">‹</button><div id="row-bloque-11" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-11', 400)">›</button></div></div>
+                <div class="row"><h2>Archivo total</h2><div class="row-wrapper"><button tabindex="0" class="slider-btn slider-left" onclick="desplazarFila('row-bloque-12', -400)">‹</button><div id="row-bloque-12" class="row-cards"></div><button tabindex="0" class="slider-btn slider-right" onclick="desplazarFila('row-bloque-12', 400)">›</button></div></div>
+            </div>
+
+            <div id="grid-view">
+                <h2>Todas las Películas del Servidor</h2>
+                <div id="movies-full-grid" class="movies-grid-container"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="detail-modal">
+        <div class="modal-content">
+            <button tabindex="0" class="btn-close" onclick="cerrarModal()">✕</button>
+            <div id="modal-header" class="modal-header">
+                <h2 id="modal-title">Título</h2>
+            </div>
+            <div class="modal-body">
+                <p id="modal-overview">Sinopsis...</p>
+                <div class="modal-actions">
+                    <button tabindex="0" class="btn-modal-play" id="modal-play-btn">▶ Reproducir Película</button>
+                    <button tabindex="0" class="btn-modal-trailer" id="modal-trailer-btn">🎬 Ver Tráiler</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Redirección inteligente: Solo actúa si está publicado en Netlify (no afecta tu localhost)
+        if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+            fetch('https://gist.githubusercontent.com/filmex2/514b84a8623e327038f87e50d94cc76e/raw/url.txt')
+                .then(response => response.text())
+                .then(urlDinamica => {
+                    const linkLimpio = urlDinamica.trim();
+                    if (linkLimpio.startsWith('http')) {
+                        window.location.href = linkLimpio;
+                    }
+                }).catch(() => {});
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+            });
+        }
+
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+
+        function instalarApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    deferredPrompt = null;
+                });
+            } else {
+                alert("Para dejar FilmX como aplicación fija en tu Smart TV, usá la opción 'Añadir a pantalla de inicio' desde el menú del navegador.");
+            }
+        }
+
+        const API_KEY = 'd69519d30677493ba1d4840b1d19bfc1';
+        const SERVER_URL = window.location.origin;
+
+        let usuarioActual = '';
+        let estrenosList = [];
+        let carouselIndex = 0;
+        let timerCarousel = null;
+        let vistaActual = 'filas';
+        let audioIntro = null;
+        let avatarSeleccionadoUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde';
+
+        let cachePeliculas = [];
+        let cacheSeries = [];
+        let activeImages = [];
+
+        // Control remoto adaptado (Atajos con flechas para adelantar/retroceder y pausa)
+        window.addEventListener('keydown', function(e) {
+            const vid = document.getElementById('player-video');
+            const videoContainer = document.getElementById('video-container');
+
+            if(videoContainer.style.display === 'flex') {
+                if(e.keyCode === 10009 || e.key === 'Escape' || e.key === 'Backspace' || e.key === 'MediaStop') {
+                    cerrarVideo();
+                    e.preventDefault();
+                } else if(e.key === ' ' || e.key === 'Enter' || e.key === 'MediaPlayPause') {
+                    if(vid.paused) vid.play(); else vid.pause();
+                    e.preventDefault();
+                } else if(e.key === 'ArrowRight') {
+                    vid.currentTime += 10; // Adelantar 10 segundos
+                    e.preventDefault();
+                } else if(e.key === 'ArrowLeft') {
+                    vid.currentTime -= 10; // Retroceder 10 segundos
+                    e.preventDefault();
+                }
+            } else {
+                if(e.keyCode === 10009 || e.key === 'Escape' || e.key === 'Backspace') {
+                    if(document.getElementById('detail-modal').style.display === 'flex') {
+                        cerrarModal();
+                        e.preventDefault();
+                    }
+                }
+            }
+
+            if(e.key === 'MediaPlayPause' && videoContainer.style.display !== 'flex') {
+                if(vid && !vid.paused) vid.pause(); else if(vid) vid.play();
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedUser = localStorage.getItem('filmx_logged_user');
+            if (savedUser) {
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('profile-screen').style.display = 'flex';
+                cargarPerfilesGuardados();
+            } else {
+                document.getElementById('start-screen').style.display = 'flex';
+            }
+        });
+
+        function arrancarAnimacion() {
+            document.getElementById('start-screen').style.display = 'none';
+            const splash = document.getElementById('intro-splash');
+            splash.style.display = 'flex';
+            splash.classList.add('active'); 
+
+            audioIntro = new Audio("Epic Impacts - Sound Effects Trailer (128kbit_AAC)_4.m4a");
+            audioIntro.play().catch(e => console.error("Audio bloqueado:", e));
+
+            setTimeout(() => {
+                if(audioIntro) {
+                    audioIntro.pause();
+                    audioIntro.currentTime = 0;
+                }
+                splash.style.display = 'none';
+                document.getElementById('login-screen').style.display = 'flex';
+                document.getElementById('login-user').focus();
+            }, 4000);
+        }
+
+        async function validarLogin() {
+            const u = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+
+            let users = [];
+            try {
+                const res = await fetch('/api/users');
+                users = await res.json();
+            } catch (e) {
+                users = [];
+            }
+
+            const userObj = users.find(user => user.nombre === u && user.pass === p);
+
+            if (userObj && userObj.activo) {
+                localStorage.setItem('filmx_logged_user', u);
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('profile-screen').style.display = 'flex';
+                cargarPerfilesGuardados();
+            } else {
+                const errorMsg = document.getElementById('error-msg');
+                errorMsg.style.display = 'block';
+                if(userObj && !userObj.activo) {
+                    errorMsg.innerText = "Usuario registrado pero pendiente de habilitación o pago.";
+                } else {
+                    errorMsg.innerText = "Usuario o contraseña incorrectos.";
+                }
+            }
+        }
+
+        function abrirRegistro() {
+            document.getElementById('registro-modal').style.display = 'flex';
+            document.getElementById('reg-user').focus();
+        }
+
+        function cerrarRegistro() {
+            document.getElementById('registro-modal').style.display = 'none';
+            document.getElementById('reg-user').value = '';
+            document.getElementById('reg-pass').value = '';
+        }
+
+        async function registrarUsuario() {
+            const nombre = document.getElementById('reg-user').value.trim();
+            const pass = document.getElementById('reg-pass').value.trim();
+
+            if (!nombre || !pass) return alert("Completá todos los campos.");
+            if (pass.length !== 6) return alert("El código debe tener exactamente 6 caracteres.");
+
+            let users = [];
+            try {
+                const res = await fetch('/api/users');
+                users = await res.json();
+            } catch (e) {
+                users = [];
+            }
+
+            if(users.find(item => item.nombre === nombre)) return alert("Ese usuario ya existe.");
+
+            users.push({ nombre, pass, pago: false, activo: false, fecha: new Date().toLocaleDateString() });
+            
+            try {
+                await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(users)
+                });
+                alert("Solicitud enviada con éxito. Queda a la espera de habilitación.");
+                cerrarRegistro();
+            } catch (e) {
+                alert("Error al enviar la solicitud al servidor.");
+            }
+        }
+
+        function cargarPerfilesGuardados() {
+            const container = document.getElementById('profiles-container');
+            container.innerHTML = '';
+            const perfiles = JSON.parse(localStorage.getItem('filmx_perfiles')) || [];
+
+            perfiles.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'profile-item';
+                item.setAttribute('tabindex', '0');
+                item.onclick = () => ingresarPerfil(p.nombre);
+                item.onkeypress = (e) => { if(e.key === 'Enter') ingresarPerfil(p.nombre); };
+                item.innerHTML = `<div class="profile-img" style="background-image: url('${p.avatar}')"></div><p>${p.nombre}</p>`;
+                container.appendChild(item);
+            });
+
+            if (perfiles.length < 7) {
+                const addBtn = document.createElement('div');
+                addBtn.className = 'profile-item';
+                addBtn.setAttribute('tabindex', '0');
+                addBtn.onclick = abrirCrearPerfil;
+                addBtn.onkeypress = (e) => { if(e.key === 'Enter') abrirCrearPerfil(); };
+                addBtn.innerHTML = `<div class="add-profile-btn">+</div><p>Agregar perfil</p>`;
+                container.appendChild(addBtn);
+            }
+
+            const primero = container.querySelector('.profile-item');
+            if (primero) primero.focus();
+        }
+
+        function abrirCrearPerfil() {
+            document.getElementById('create-profile-modal').style.display = 'flex';
+            document.getElementById('new-profile-name').focus();
+        }
+
+        function cerrarCrearPerfil() {
+            document.getElementById('create-profile-modal').style.display = 'none';
+            document.getElementById('new-profile-name').value = '';
+        }
+
+        function seleccionarAvatar(element, url) {
+            document.querySelectorAll('.avatar-option').forEach(a => a.classList.remove('selected'));
+            element.classList.add('selected');
+            avatarSeleccionadoUrl = url;
+        }
+
+        function guardarNuevoPerfil() {
+            const nombre = document.getElementById('new-profile-name').value.trim();
+            if (!nombre) return alert("Escribí un nombre para el perfil.");
+            let perfiles = JSON.parse(localStorage.getItem('filmx_perfiles')) || [];
+            perfiles.push({ nombre, avatar: avatarSeleccionadoUrl });
+            localStorage.setItem('filmx_perfiles', JSON.stringify(perfiles));
+            cerrarCrearPerfil();
+            cargarPerfilesGuardados();
+        }
+
+        function ingresarPerfil(nombre) {
+            usuarioActual = nombre;
+            document.getElementById('profile-screen').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+            sincronizarCatalogo();
+        }
+
+        async function sincronizarCatalogo() {
+            try {
+                const res = await fetch(`${SERVER_URL}/Items?recursive=true&includeItemTypes=Movie&sortBy=SortName&sortOrder=Ascending&api_key=${API_KEY}`);
+                const data = await res.json();
+                cachePeliculas = data.Items || [];
+
+                renderizarPeliculasEnFilas(cachePeliculas);
+
+                const peliculasEstreno = [...cachePeliculas].sort((a, b) => new Date(b.DateCreated) - new Date(a.DateCreated));
+                estrenosList = peliculasEstreno.slice(0, 6);
+                if (estrenosList.length > 0) iniciarHeroCarousel();
+
+            } catch (err) {
+                console.error("Error sincronizando servidor:", err);
+            }
+        }
+
+        function renderizarPeliculasEnFilas(peliculas) {
+            const titulosOriginales = [
+                "Tendencias de la semana", "Lo más visto por la comunidad", "Estrenos recientes",
+                "Acción y adrenalina", "Ciencia ficción y misterio", "Comedia y diversión",
+                "Drama y emoción", "Animación y familia", "Clásicos imperdibles",
+                "Películas aclamadas", "Selección especial FilmX", "Archivo total"
+            ];
+            
+            const filasH2 = document.querySelectorAll('#rows-view .row h2');
+            filasH2.forEach((h2, idx) => {
+                if(titulosOriginales[idx]) h2.innerText = titulosOriginales[idx];
+            });
+
+            for (let i = 1; i <= 12; i++) {
+                const fila = document.getElementById(`row-bloque-${i}`);
+                if(fila) fila.innerHTML = '';
+            }
+            const gridContainer = document.getElementById('movies-full-grid');
+            if(gridContainer) gridContainer.innerHTML = '';
+
+            peliculas.forEach((movie, idx) => {
+                const numeroBloque = (idx % 12) + 1;
+                const contenedorFila = document.getElementById(`row-bloque-${numeroBloque}`);
+                if (contenedorFila) contenedorFila.appendChild(crearCard(movie));
+                if (gridContainer) gridContainer.appendChild(crearCard(movie));
+            });
+        }
+
+        async function cargarSeries() {
+            try {
+                if (cacheSeries.length === 0) {
+                    const res = await fetch(`${SERVER_URL}/Items?recursive=true&includeItemTypes=Series&sortBy=SortName&sortOrder=Ascending&api_key=${API_KEY}`);
+                    const data = await res.json();
+                    cacheSeries = data.Items || [];
+                }
+                renderizarSeriesEnFilas(cacheSeries);
+                mostrarVista('filas');
+            } catch (err) {
+                console.error("Error cargando series:", err);
+            }
+        }
+
+        function renderizarSeriesEnFilas(series) {
+            const filasH2 = document.querySelectorAll('#rows-view .row h2');
+            filasH2.forEach((h2, idx) => {
+                h2.innerText = idx === 0 ? "Series Disponibles" : "";
+            });
+
+            for (let i = 1; i <= 12; i++) {
+                const fila = document.getElementById(`row-bloque-${i}`);
+                if(fila) fila.innerHTML = '';
+            }
+            const gridContainer = document.getElementById('movies-full-grid');
+            if(gridContainer) gridContainer.innerHTML = '';
+
+            series.forEach((serie, idx) => {
+                const numeroBloque = (idx % 12) + 1;
+                const contenedorFila = document.getElementById(`row-bloque-${numeroBloque}`);
+                if (contenedorFila) contenedorFila.appendChild(crearCard(serie));
+                if (gridContainer) gridContainer.appendChild(crearCard(serie));
+            });
+        }
+
+        function irAInicio() {
+            if (cachePeliculas.length > 0) {
+                renderizarPeliculasEnFilas(cachePeliculas);
+            } else {
+                sincronizarCatalogo();
+            }
+            mostrarVista('filas');
+        }
+
+        function crearCard(movie) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.setAttribute('tabindex', '0');
+            const imgUrl = `${SERVER_URL}/Items/${movie.Id}/Images/Primary?maxHeight=450&maxWidth=300&quality=96&api_key=${API_KEY}`;
+            
+            const fallbackTitle = document.createElement('div');
+            fallbackTitle.className = 'card-fallback-title';
+            fallbackTitle.innerText = movie.Name;
+            card.appendChild(fallbackTitle);
+
+            const img = new Image();
+            activeImages.push(img);
+            
+            img.onload = () => {
+                card.style.backgroundImage = `url('${imgUrl}')`;
+                fallbackTitle.style.display = 'none';
+            };
+            img.onerror = () => {
+                card.style.backgroundColor = '#252525';
+                fallbackTitle.style.display = 'block';
+            };
+            img.src = imgUrl;
+
+            card.addEventListener('click', () => abrirModal(movie));
+            card.addEventListener('keypress', (e) => { if(e.key === 'Enter') abrirModal(movie); });
+            return card;
+        }
+
+        function mostrarVista(tipo) {
+            if (tipo === 'cuadricula') {
+                document.getElementById('rows-view').style.display = 'none';
+                document.getElementById('grid-view').style.display = 'block';
+                document.getElementById('btn-toggle-text').innerText = 'Ver Filas Netflix';
+                vistaActual = 'grid';
+            } else {
+                document.getElementById('rows-view').style.display = 'block';
+                document.getElementById('grid-view').style.display = 'none';
+                document.getElementById('btn-toggle-text').innerText = 'Ver Cuadrícula Total';
+                vistaActual = 'filas';
+            }
+        }
+
+        function toggleVistaPrincipal() {
+            if (vistaActual === 'filas') {
+                mostrarVista('cuadricula');
+            } else {
+                mostrarVista('filas');
+            }
+        }
+
+        function iniciarHeroCarousel() {
+            actualizarHero(0);
+            if (timerCarousel) clearInterval(timerCarousel);
+            timerCarousel = setInterval(() => {
+                carouselIndex = (carouselIndex + 1) % estrenosList.length;
+                actualizarHero(carouselIndex);
+            }, 6000);
+        }
+
+        function actualizarHero(i) {
+            const m = estrenosList[i];
+            if (!m) return;
+            const bg = m.BackdropImageTags && m.BackdropImageTags.length > 0 
+                ? `${SERVER_URL}/Items/${m.Id}/Images/Backdrop/0?api_key=${API_KEY}` 
+                : `${SERVER_URL}/Items/${m.Id}/Images/Primary?api_key=${API_KEY}`;
+            
+            const hero = document.getElementById('hero-banner');
+            hero.style.backgroundImage = `url('${bg}')`;
+            document.getElementById('hero-title').innerText = m.Name;
+            document.getElementById('hero-desc').innerText = m.Overview || "Estreno exclusivo disponible en la red de FilmX.";
+            
+            document.getElementById('hero-play-btn').onclick = () => { reproducirPelicula(m); };
+            document.getElementById('hero-info-btn').onclick = () => { abrirModal(m); };
+        }
+
+        function desplazarFila(rowId, distancia) {
+            const fila = document.getElementById(rowId);
+            fila.scrollBy({ left: distancia, behavior: 'smooth' });
+        }
+
+        function abrirModal(movie) {
+            const modal = document.getElementById('detail-modal');
+            const img = movie.BackdropImageTags && movie.BackdropImageTags.length > 0 
+                ? `${SERVER_URL}/Items/${movie.Id}/Images/Backdrop/0?api_key=${API_KEY}` 
+                : `${SERVER_URL}/Items/${movie.Id}/Images/Primary?api_key=${API_KEY}`;
+            
+            const header = document.getElementById('modal-header');
+            header.style.backgroundImage = `linear-gradient(to top, #181818, rgba(0,0,0,0.3)), url('${img}')`;
+            header.style.backgroundSize = 'cover';
+            header.style.backgroundPosition = 'center';
+            header.style.backgroundRepeat = 'no-repeat';
+
+            document.getElementById('modal-title').innerText = movie.Name;
+            document.getElementById('modal-overview').innerText = movie.Overview && movie.Overview.trim() !== "" ? movie.Overview : `Sinopsis oficial: ${movie.Name} disponible en alta definición en la red de FilmX. Disfrutá de este contenido exclusivo con toda la familia.`;
+            
+            const playBtn = document.getElementById('modal-play-btn');
+            playBtn.onclick = () => { reproducirPelicula(movie); };
+            playBtn.focus();
+            
+            modal.style.display = 'flex';
+        }
+
+        function reproducirPelicula(movie) {
+            cerrarModal();
+            const videoContainer = document.getElementById('video-container');
+            const videoPlayer = document.getElementById('player-video');
+            
+            videoPlayer.src = `${SERVER_URL}/Videos/${movie.Id}/stream.mp4?api_key=${API_KEY}&Static=true`;
+            videoContainer.style.display = 'flex';
+
+            if (videoPlayer.requestFullscreen) {
+                videoPlayer.requestFullscreen().catch(err => console.log(err));
+            } else if (videoPlayer.webkitRequestFullscreen) {
+                videoPlayer.webkitRequestFullscreen();
+            }
+
+            videoPlayer.play().catch(err => {
+                console.error("Error reproduciendo stream:", err);
+                window.open(`${SERVER_URL}/web/index.html#!/details?id=${movie.Id}&api_key=${API_KEY}`, '_blank');
+            });
+            videoPlayer.focus();
+        }
+
+        function cerrarVideo() {
+            const videoPlayer = document.getElementById('player-video');
+            videoPlayer.pause();
+            videoPlayer.src = '';
+            document.getElementById('video-container').style.display = 'none';
+
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(e => {});
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+
+        function cerrarModal() {
+            document.getElementById('detail-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
